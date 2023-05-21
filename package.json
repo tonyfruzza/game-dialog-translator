@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "ffmpeg-static": "^5.1.0",
+    "jimp": "^0.22.8",
+    "openai": "^3.2.1",
+    "screenshot-desktop": "^0.0.0-development",
+    "tesseract.js": "^4.0.5"
+  }
+}
