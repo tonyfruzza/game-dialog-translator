@@ -1,9 +1,8 @@
 const { Configuration, OpenAIApi } = require("openai");
 const dotenv = require("dotenv");
-const screenshot = require("screenshot-desktop");
-const Jimp = require("jimp");
 const { createWorker } = require("tesseract.js");
 const fs = require("fs");
+const screenshot = require("./modules/screenshot");
 
 dotenv.config();
 
@@ -16,24 +15,33 @@ function initOpenAi() {
   return openai;
 }
 
-async function grabDialog() {
-  const img = await screenshot({ format: "png" });
-  fs.writeFileSync("out.png", img);
-  // screen resolution is 2055, 1328
-  // but the screen grab is 4112 x 2658
-  cropImage("out.png", 336 * 2, 970 * 2, 847 * 2, 114 * 2);
-}
-
-function cropImage(imageName, x, y, width, height) {
-  Jimp.read(imageName)
-    .then((image) => {
-      image
-        .crop(x, y, width, height) // crop
-        .write("output.png"); // save
+function writeHTMLFormattedDialogs(dialogs) {
+  // Write at the header to auto refresh the page
+  const htmlHeader = `<!DOCTYPE html>
+  <html lang="en">
+  
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yo-Kai Watch 4 Translation</title>
+  </head>
+  <script type="text/javascript">
+    function autoRefreshPage() {
+        window.location.reload();
+    }
+    setTimeout('autoRefreshPage()', 1000);
+  </script>
+  
+  <body bgcolor=#00ff00 text=#FFFFFF><font size="+2"`;
+  // fs.writeFileSync("dialogs.html", );
+  const html = dialogs
+    .map((dialog) => {
+      const { role, content } = dialog;
+      return `<p><!--<b>${role}:</b> -->${content}</p>`;
     })
-    .catch((err) => {
-      console.error(err);
-    });
+    .join("\n");
+  fs.writeFileSync("dialogs.html", htmlHeader + html);
 }
 
 async function main() {
@@ -43,23 +51,34 @@ async function main() {
   await worker.loadLanguage("jpn");
   await worker.initialize("jpn");
   let lastJapaneseText = "";
+  const translation = [];
 
   while (true) {
-    await grabDialog();
-    //   const japaneseText = await getJapaneseCharacters();
+    const imageSaved = await screenshot.grabDialog();
+    // If the image is not saved then continue except if the lastJapaneseText is empty
+    // if (!imageSaved && lastJapaneseText !== "") {
+    //   console.log("Image not saved");
+    //   continue;
+    // }
     const {
       data: { text },
     } = await worker.recognize("output.png");
-
     if (text === lastJapaneseText || text === undefined) {
       continue;
     }
     lastJapaneseText = text;
-    // If lastJapaneseText contains the word "incomprehensible" then continue
-    if (lastJapaneseText.includes("incomprehensible")) {
+    console.log(lastJapaneseText);
+    // Translate using translate(openai, lastJapaneseText) and append to translation
+    const content = await translate(openai, lastJapaneseText);
+    // If lastJapaneseText contains the word "incomprehensible" then continue 
+    if (content.includes("ncomprehensible")) {
+      console.log("Unable to translate: " + lastJapaneseText);
       continue;
     }
-    console.log(await translate(openai, lastJapaneseText));
+    // console.log(content);
+    translation.push({role: "unknown", content });
+    // Print the last 3 translations
+    writeHTMLFormattedDialogs(translation.slice(-2));
   }
   await worker.terminate();
 }
@@ -73,7 +92,7 @@ async function translate(openai, text) {
       {
         role: "assistant",
         content:
-          "I am a Japanese to English translator for the game Yo-Kai Watch 4. Provide me the dialog snippets to be translated to English. When the text provided is not translatable I'll just say 'incomprehensible'",
+          "I am a Japanese to English translator for the game Yo-Kai Watch 4. Provide me the dialog snippets to be translated to English. When the text provided is not translatable say 'incomprehensible'",
       },
       {
         role: "user",
