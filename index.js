@@ -68,6 +68,7 @@ async function main() {
     }
     lastJapaneseText = text;
     console.log(lastJapaneseText);
+    continue;
     // Translate using translate(openai, lastJapaneseText) and append to translation
     const content = await translate(openai, lastJapaneseText);
     // If lastJapaneseText contains the word "incomprehensible" then continue 

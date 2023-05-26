@@ -1,5 +1,6 @@
 {
     "whiteThreshold": 225,
     "contrast": 0.6,
-    "changeThreshold": 0.8
+    "changeThreshold": 0.8,
+    "markerChangeThreshold": 0.5
 }
