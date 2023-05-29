@@ -26,15 +26,15 @@ async function main() {
   await worker.initialize("jpn");
   let lastJapaneseText = "";
   const translation = [];
-  const translate = new Translate();
+  const openai = new Translate();
 
   while (true) {
     const imageSaved = await screenshot.grabDialog(argv.test);
     // If the image is not saved then continue except if the lastJapaneseText is empty
-    // if (!imageSaved && lastJapaneseText !== "") {
-    //   console.log("Image not saved");
-    //   continue;
-    // }
+    if (!imageSaved && lastJapaneseText !== "") {
+      console.log("Image not saved");
+      continue;
+    }
     const {
       data: { text },
     } = await worker.recognize("output.png");
@@ -43,9 +43,9 @@ async function main() {
     }
     lastJapaneseText = text;
     console.log(lastJapaneseText);
-    continue;
+    // continue;
     // Translate using translate(openai, lastJapaneseText) and append to translation
-    const content = await translate(lastJapaneseText);
+    const content = await openai.translate(lastJapaneseText);
     // If lastJapaneseText contains the word "incomprehensible" then continue
     if (content.includes("ncomprehensible")) {
       console.log("Unable to translate: " + lastJapaneseText);

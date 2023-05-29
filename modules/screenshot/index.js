@@ -20,6 +20,7 @@ async function hasImageChanged(
   jimpImage,
   diskImage,
   changeThreshold = 0.1,
+  pixelThreshold = 20,
   outputFile = null
 ) {
   const diskJimpImage = await Jimp.read(diskImage);
@@ -41,8 +42,7 @@ async function hasImageChanged(
   if (outputFile) {
     fs.writeFileSync(outputFile, PNG.sync.write(diffBuffer));
   }
-  console.log(diffPixels);
-  return diffPixels > 0;
+  return diffPixels < 20;
 }
 
 async function grabDialog(useTestImage = false) {
@@ -52,12 +52,14 @@ async function grabDialog(useTestImage = false) {
     ? fs.readFileSync("test/typicalDialog2.png")
     : await screenshot({ format: "png" });
   fs.writeFileSync("out.png", img);
+  fs.writeFileSync(`out-${new Date().getTime()}.png`, img);
   // Screen size is 1920x1080
   const hasMarker = await findDialogMarker(img, config);
   if (!hasMarker) {
     console.log("No marker found");
     return false;
   }
+
   return await cropImage(img, 500, 710, 1350 - 500, 850 - 710, config);
 }
 
@@ -68,20 +70,25 @@ async function findDialogMarker(imageStream, config) {
   image.contrast(0.5);
   const blackAndWhiteImage = extractWhiteText(image, 200);
   const writeAsync = util.promisify(image.write.bind(blackAndWhiteImage));
-  await writeAsync("marker.png");
-  // This is not working as expected, will have to write my own image comparison
-  // Look for some green in the image to see if the dialog is open
-  // console.log({hasMarker});
-  // printImageHexValues(blackAndWhiteImage);
-  const diff = await hasImageChanged(
-    blackAndWhiteImage,
-    "marker-ref.png",
-    0.1,
-    "diff.png"
-  );
-  console.log(diff);
-  // printImageHexValues(blackAndWhiteImage);
-  return true;
+  // timestamp should be a epoch timestamp
+  const timestamp = new Date().getTime();
+  await writeAsync(`marker.png`);
+
+  // There are marker-1.png through marker-14.png that we can attempt to find a match for
+  // using hasImageChanged let's loop through and break when we find a match
+  for (let i = 1; i <= 14; i++) {
+    const match = await hasImageChanged(
+      blackAndWhiteImage,
+      `marker-${i}.png`,
+      config.markerChangeThreshold,
+      "diff.png"
+    );
+    if ( match ) {
+      // console.log(`Found a match for marker-${i}.png`);
+      return true;
+    }
+  }
+  return false;
 }
 
 function printImageHexValues(image) {
