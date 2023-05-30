@@ -12,6 +12,7 @@ class ScreenCapture {
     this.loadConfig();
     this.directoryPath = path.join(__dirname, "../../test/screencaps");
     this.testScreenshotIndex = 0;
+    this.testScreenshotNames = [];
     this.testScreenshots = this.generateListOfTestScreenshots();
     this.lastDialog = null;
     this.markerRefs = [];
@@ -31,9 +32,11 @@ class ScreenCapture {
   }
 
   generateListOfTestScreenshots() {
-    const files = fs.readdirSync(this.directoryPath);
+    this.testScreenshotNames = fs.readdirSync(this.directoryPath);
     // For each of the files map the directoryPath + filename and return
-    return files.map((file) => path.join(this.directoryPath, file));
+    return this.testScreenshotNames.map((file) =>
+      path.join(this.directoryPath, file)
+    );
   }
 
   getTestScreenshotFilename() {
@@ -54,9 +57,17 @@ class ScreenCapture {
     // Check to see if the dialog marker is present
     const jimpImage = await Jimp.read(img);
     const jimpImageClone = jimpImage.clone();
-    const hasMarker = await this.findDialogMarker(jimpImage, this.config);
+    const hasMarker = await this.findDialogMarker(jimpImage);
+
     if (!hasMarker) {
-      console.log("No marker found");
+      if (useTestImage) {
+        console.log(
+          `No marker found in test image: ${
+            this.testScreenshotNames[this.testScreenshotIndex]
+          }`
+        );
+        return false;
+      }
       return false;
     }
 
@@ -105,6 +116,7 @@ class ScreenCapture {
     // If it does then compare the two images
     let imageNeedsToBeWritten = true;
     if (this.lastDialog) {
+      console.log("Comparing images");
       imageNeedsToBeWritten = await this.hasImageChanged(
         highContrastImage,
         this.lastDialog,
@@ -122,7 +134,7 @@ class ScreenCapture {
     return imageNeedsToBeWritten;
   }
 
-  async findDialogMarker(jimpImage, config) {
+  async findDialogMarker(jimpImage) {
     // Check to see if the marker refs have been loaded and initialize them if not
     if (this.markerRefs.length === 0) {
       await this.initMarkerRefs();
@@ -140,7 +152,7 @@ class ScreenCapture {
       const match = await this.hasImageChanged(
         binaryFilterImage,
         this.markerRefs[i],
-        config.markerChangeThreshold,
+        this.config.markerChangeThreshold,
         "diff.png"
       );
       if (match) {
