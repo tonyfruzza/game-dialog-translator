@@ -1,7 +1,6 @@
 const dotenv = require("dotenv");
 const { createWorker } = require("tesseract.js");
-const fs = require("fs");
-const screenshot = require("./modules/screenshot");
+const { ScreenCapture } = require("./modules/screenCapture");
 const { writeHTMLFormattedDialogs } = require("./modules/display");
 const { Translate } = require("./modules/translator");
 const yargs = require("yargs");
@@ -27,9 +26,10 @@ async function main() {
   let lastJapaneseText = "";
   const translation = [];
   const openai = new Translate();
+  const screenCapture = new ScreenCapture();
 
   while (true) {
-    const imageSaved = await screenshot.grabDialog(argv.test);
+    const imageSaved = await screenCapture.grabDialog(argv.test);
     // If the image is not saved then continue except if the lastJapaneseText is empty
     if (!imageSaved && lastJapaneseText !== "") {
       console.log("Image not saved");
@@ -43,7 +43,7 @@ async function main() {
     }
     lastJapaneseText = text;
     console.log(lastJapaneseText);
-    // continue;
+    continue;
     // Translate using translate(openai, lastJapaneseText) and append to translation
     const content = await openai.translate(lastJapaneseText);
     // If lastJapaneseText contains the word "incomprehensible" then continue
