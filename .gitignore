@@ -3,3 +3,4 @@ node_modules
 *.traineddata
 .env
 dialogs.html
+test-data.json
