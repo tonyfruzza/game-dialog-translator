@@ -32,7 +32,7 @@ async function main() {
     const imageSaved = await screenCapture.grabDialog(argv.test);
     // If the image is not saved then continue except if the lastJapaneseText is empty
     if (!imageSaved && lastJapaneseText !== "") {
-      console.log("Image not saved");
+      // console.log("Image not saved");
       continue;
     }
     const {

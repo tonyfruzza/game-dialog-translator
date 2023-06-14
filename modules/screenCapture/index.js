@@ -11,8 +11,10 @@ class ScreenCapture {
     this.config = {};
     this.loadConfig();
     this.directoryPath = path.join(__dirname, "../../test/screencaps");
+    this.inTestMode = false;
     this.testScreenshotIndex = 0;
     this.testScreenshotNames = [];
+    this.testDataResults = {};
     this.testScreenshots = this.generateListOfTestScreenshots();
     this.lastDialog = null;
     this.markerRefs = [];
@@ -33,21 +35,44 @@ class ScreenCapture {
 
   generateListOfTestScreenshots() {
     this.testScreenshotNames = fs.readdirSync(this.directoryPath);
+    this.testScreenshotNames.forEach((key) => {
+      this.testDataResults[key] = {};
+    });
+
     // For each of the files map the directoryPath + filename and return
     return this.testScreenshotNames.map((file) =>
       path.join(this.directoryPath, file)
     );
   }
 
+  flushTestDataToDisk() {
+    fs.writeFileSync(
+      "test-data.json",
+      JSON.stringify(this.testDataResults, null, 2)
+    );
+    process.exit(0);
+  }
+
+  setTestDataResult(key, result) {
+    this.testDataResults[this.testScreenshotNames[this.testScreenshotIndex]][
+      `${key}`
+    ] = result;
+  }
+
   getTestScreenshotFilename() {
     const screenshot = this.testScreenshots[this.testScreenshotIndex];
     this.testScreenshotIndex =
       (this.testScreenshotIndex + 1) % this.testScreenshots.length;
+    // Detect if we have gone beyond the end of the array
+    if (this.testScreenshotIndex === 0) {
+      this.flushTestDataToDisk();
+    }
     return screenshot;
   }
 
   // Returns cropped image of dialog area or false if no dialog area is found
   async grabDialog(useTestImage = false) {
+    this.inTestMode = useTestImage;
     const img = useTestImage
       ? fs.readFileSync(this.getTestScreenshotFilename())
       : await screenshot({ format: "png" });
@@ -60,13 +85,12 @@ class ScreenCapture {
     const hasMarker = await this.findDialogMarker(jimpImage);
 
     if (!hasMarker) {
-      if (useTestImage) {
+      if (this.inTestMode) {
         console.log(
           `No marker found in test image: ${
             this.testScreenshotNames[this.testScreenshotIndex]
           }`
         );
-        return false;
       }
       return false;
     }
@@ -75,16 +99,15 @@ class ScreenCapture {
       jimpImageClone,
       500,
       710,
-      1350 - 500,
+      1350 - 490,
       850 - 710
     );
   }
 
-  async hasImageChanged(
+  async howManyPixelsDiffer(
     image1,
     image2,
     changeThreshold = 0.1,
-    pixelThreshold = 20,
     outputFile = null
   ) {
     const { width, height } = image1.bitmap;
@@ -102,7 +125,7 @@ class ScreenCapture {
     if (outputFile) {
       fs.writeFileSync(outputFile, PNG.sync.write(diffBuffer));
     }
-    return diffPixels < 20;
+    return diffPixels;
   }
 
   async cropDialogArea(jimpImage, x, y, width, height) {
@@ -116,21 +139,41 @@ class ScreenCapture {
     // If it does then compare the two images
     let imageNeedsToBeWritten = true;
     if (this.lastDialog) {
-      console.log("Comparing images");
-      imageNeedsToBeWritten = await this.hasImageChanged(
+      const pixelsDiffer = await this.howManyPixelsDiffer(
         highContrastImage,
         this.lastDialog,
         this.config.changeThreshold,
         "text-diff.png"
       );
+      if (this.inTestMode) {
+        console.log(
+          `Pixels differ: ${pixelsDiffer} for test image: ${
+            this.testScreenshotNames[this.testScreenshotIndex]
+          }`
+        );
+      }
+      imageNeedsToBeWritten = pixelsDiffer > 100;
       if (!imageNeedsToBeWritten) {
-        return imageNeedsToBeWritten;
+        if (this.inTestMode) {
+          console.log(
+            `Dialog image has not changed within: ${
+              this.testScreenshotNames[this.testScreenshotIndex]
+            }`
+          );
+        }
+        return false;
       }
     }
     this.lastDialog = highContrastImage;
     const writeAsync = util.promisify(jimpImage.write.bind(highContrastImage));
     await writeAsync("output.png");
-    console.log("Image written");
+    if (this.inTestMode) {
+      console.log(
+        `Dialog image written from: ${
+          this.testScreenshotNames[this.testScreenshotIndex]
+        }`
+      );
+    }
     return imageNeedsToBeWritten;
   }
 
@@ -145,20 +188,32 @@ class ScreenCapture {
     const binaryFilterImage = this.binaryFilter(jimpImage, 200);
     const writeAsync = util.promisify(jimpImage.write.bind(binaryFilterImage));
     await writeAsync(`marker.png`);
+    let pixelsDiffer = 1000;
 
     // There are marker-1.png through marker-14.png that we can attempt to find a match for
     // using hasImageChanged let's loop through and break when we find a match
     for (let i = 1; i <= 14; i++) {
-      const match = await this.hasImageChanged(
+      pixelsDiffer = await this.howManyPixelsDiffer(
         binaryFilterImage,
         this.markerRefs[i],
         this.config.markerChangeThreshold,
         "diff.png"
       );
-      if (match) {
-        // console.log(`Found a match for marker-${i}.png`);
+      if (pixelsDiffer < this.config.markerPixelThreshold && this.inTestMode) {
+        console.log(
+          `Found a match for marker-${i}.png for test image: ${
+            this.testScreenshotNames[this.testScreenshotIndex]
+          }`
+        );
+        this.setTestDataResult("markerMatch", `marker-${i}.png`);
+        this.setTestDataResult("markerMatchPixels", pixelsDiffer);
         return true;
       }
+    }
+
+    if (this.inTestMode) {
+      this.setTestDataResult("markerMatch", false);
+      this.setTestDataResult("markerMatchPixels", pixelsDiffer);
     }
     return false;
   }
