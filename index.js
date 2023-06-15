@@ -10,7 +10,7 @@ const argv = yargs
     test: {
       description: "test the program",
       alias: "t",
-    },
+    }
   })
   .help()
   .alias("help", "h")
@@ -43,7 +43,7 @@ async function main() {
     }
     lastJapaneseText = text;
     console.log(lastJapaneseText);
-    continue;
+    // continue;
     // Translate using translate(openai, lastJapaneseText) and append to translation
     const content = await openai.translate(lastJapaneseText);
     // If lastJapaneseText contains the word "incomprehensible" then continue

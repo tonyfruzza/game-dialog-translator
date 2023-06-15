@@ -31,6 +31,9 @@ class ScreenCapture {
         path.join(__dirname, "../../reference_images/dialog", `marker-${i}.png`)
       );
     }
+    if(this.config.debug) {
+      console.log("Loaded marker refs!");
+    }
   }
 
   generateListOfTestScreenshots() {
@@ -199,14 +202,16 @@ class ScreenCapture {
         this.config.markerChangeThreshold,
         "diff.png"
       );
-      if (pixelsDiffer < this.config.markerPixelThreshold && this.inTestMode) {
-        console.log(
-          `Found a match for marker-${i}.png for test image: ${
-            this.testScreenshotNames[this.testScreenshotIndex]
-          }`
-        );
-        this.setTestDataResult("markerMatch", `marker-${i}.png`);
-        this.setTestDataResult("markerMatchPixels", pixelsDiffer);
+      if (pixelsDiffer < this.config.markerPixelThreshold) {
+        if (this.inTestMode) {
+          console.log(
+            `Found a match for marker-${i}.png for test image: ${
+              this.testScreenshotNames[this.testScreenshotIndex]
+            }`
+          );
+          this.setTestDataResult("markerMatch", `marker-${i}.png`);
+          this.setTestDataResult("markerMatchPixels", pixelsDiffer);  
+        }
         return true;
       }
     }

@@ -1,4 +1,5 @@
-{
+{ 
+    "debug": true,
     "whiteThreshold": 200,
     "contrast": 0.5,
     "changeThreshold": 0.8,
